@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Downloader - Tải nhạc & video từ YouTube</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            color: #fff;
+        }
+
+        .container {
+            max-width: 700px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            font-size: 2.2em;
+            margin-bottom: 10px;
+            background: linear-gradient(90deg, #e94560, #ff6b6b);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .header p {
+            color: #a0a0b0;
+            font-size: 1.1em;
+        }
+
+        .logo {
+            font-size: 3em;
+            margin-bottom: 15px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 30px;
+            backdrop-filter: blur(10px);
+            margin-bottom: 20px;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .input-group input {
+            flex: 1;
+            padding: 14px 18px;
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.05);
+            color: #fff;
+            font-size: 1em;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        .input-group input:focus {
+            border-color: #e94560;
+        }
+
+        .input-group input::placeholder {
+            color: #666;
+        }
+
+        .btn-info {
+            padding: 14px 24px;
+            background: linear-gradient(135deg, #e94560, #c23152);
+            border: none;
+            border-radius: 12px;
+            color: #fff;
+            font-size: 1em;
+            cursor: pointer;
+            transition: transform 0.2s, opacity 0.2s;
+            white-space: nowrap;
+        }
+
+        .btn-info:hover {
+            transform: scale(1.05);
+            opacity: 0.9;
+        }
+
+        .btn-info:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .video-info {
+            display: none;
+            margin-top: 20px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .video-info.show {
+            display: block;
+        }
+
+        .video-info-content {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .video-thumbnail {
+            width: 180px;
+            height: 100px;
+            border-radius: 8px;
+            object-fit: cover;
+            flex-shrink: 0;
+        }
+
+        .video-details h3 {
+            font-size: 1.1em;
+            margin-bottom: 8px;
+            line-height: 1.4;
+        }
+
+        .video-details p {
+            color: #a0a0b0;
+            font-size: 0.9em;
+        }
+
+        .format-section {
+            display: none;
+            margin-top: 20px;
+        }
+
+        .format-section.show {
+            display: block;
+        }
+
+        .format-label {
+            font-size: 1em;
+            margin-bottom: 12px;
+            color: #a0a0b0;
+        }
+
+        .format-buttons {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .format-btn {
+            flex: 1;
+            padding: 16px;
+            border: 2px solid rgba(255, 255, 255, 0.15);
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.05);
+            color: #fff;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: center;
+        }
+
+        .format-btn:hover {
+            border-color: #e94560;
+            background: rgba(233, 69, 96, 0.1);
+        }
+
+        .format-btn.active {
+            border-color: #e94560;
+            background: rgba(233, 69, 96, 0.2);
+        }
+
+        .format-btn .icon {
+            font-size: 2em;
+            margin-bottom: 8px;
+        }
+
+        .format-btn .name {
+            font-size: 1.1em;
+            font-weight: 600;
+        }
+
+        .format-btn .desc {
+            font-size: 0.8em;
+            color: #a0a0b0;
+            margin-top: 4px;
+        }
+
+        .btn-download {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #00b894, #00a381);
+            border: none;
+            border-radius: 12px;
+            color: #fff;
+            font-size: 1.1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, opacity 0.2s;
+        }
+
+        .btn-download:hover {
+            transform: scale(1.02);
+            opacity: 0.9;
+        }
+
+        .btn-download:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .progress-section {
+            display: none;
+            margin-top: 20px;
+        }
+
+        .progress-section.show {
+            display: block;
+        }
+
+        .progress-bar-container {
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #e94560, #ff6b6b);
+            border-radius: 4px;
+            transition: width 0.3s;
+            width: 0%;
+        }
+
+        .progress-text {
+            text-align: center;
+            color: #a0a0b0;
+            font-size: 0.9em;
+        }
+
+        .error-message {
+            display: none;
+            padding: 12px 16px;
+            background: rgba(231, 76, 60, 0.2);
+            border: 1px solid rgba(231, 76, 60, 0.3);
+            border-radius: 8px;
+            color: #e74c3c;
+            margin-top: 15px;
+        }
+
+        .error-message.show {
+            display: block;
+        }
+
+        .success-message {
+            display: none;
+            padding: 12px 16px;
+            background: rgba(0, 184, 148, 0.2);
+            border: 1px solid rgba(0, 184, 148, 0.3);
+            border-radius: 8px;
+            color: #00b894;
+            margin-top: 15px;
+            text-align: center;
+        }
+
+        .success-message.show {
+            display: block;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            color: #555;
+            font-size: 0.9em;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 0.8s linear infinite;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 600px) {
+            .header h1 { font-size: 1.6em; }
+            .input-group { flex-direction: column; }
+            .video-info-content { flex-direction: column; text-align: center; }
+            .video-thumbnail { width: 100%; height: auto; }
+            .format-buttons { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">🎵</div>
+            <h1>YouTube Downloader</h1>
+            <p>Tải nhạc và video từ YouTube - MP3 & MP4</p>
+        </div>
+
+        <div class="card">
+            <div class="input-group">
+                <input type="text" id="urlInput" placeholder="Dán link YouTube vào đây..." autofocus>
+                <button class="btn-info" id="btnGetInfo" onclick="getVideoInfo()">
+                    Tìm kiếm
+                </button>
+            </div>
+
+            <div class="video-info" id="videoInfo">
+                <div class="video-info-content">
+                    <img class="video-thumbnail" id="videoThumbnail" src="" alt="Thumbnail">
+                    <div class="video-details">
+                        <h3 id="videoTitle"></h3>
+                        <p id="videoChannel"></p>
+                        <p id="videoDuration"></p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="format-section" id="formatSection">
+                <p class="format-label">Chọn định dạng tải xuống:</p>
+                <div class="format-buttons">
+                    <div class="format-btn active" id="btnMp3" onclick="selectFormat('mp3')">
+                        <div class="icon">🎵</div>
+                        <div class="name">MP3</div>
+                        <div class="desc">Chỉ âm thanh (192kbps)</div>
+                    </div>
+                    <div class="format-btn" id="btnMp4" onclick="selectFormat('mp4')">
+                        <div class="icon">🎬</div>
+                        <div class="name">MP4</div>
+                        <div class="desc">Video chất lượng cao</div>
+                    </div>
+                </div>
+                <button class="btn-download" id="btnDownload" onclick="startDownload()">
+                    ⬇️ Tải xuống
+                </button>
+            </div>
+
+            <div class="progress-section" id="progressSection">
+                <div class="progress-bar-container">
+                    <div class="progress-bar" id="progressBar"></div>
+                </div>
+                <p class="progress-text" id="progressText">Đang chuẩn bị...</p>
+            </div>
+
+            <div class="error-message" id="errorMessage"></div>
+            <div class="success-message" id="successMessage"></div>
+        </div>
+
+        <div class="footer">
+            <p>YouTube Downloader &copy; 2024 - Tải nhạc miễn phí</p>
+        </div>
+    </div>
+
+    <script>
+        let selectedFormat = 'mp3';
+        let currentUrl = '';
+
+        document.getElementById('urlInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') getVideoInfo();
+        });
+
+        function selectFormat(format) {
+            selectedFormat = format;
+            document.getElementById('btnMp3').classList.toggle('active', format === 'mp3');
+            document.getElementById('btnMp4').classList.toggle('active', format === 'mp4');
+        }
+
+        function formatDuration(seconds) {
+            if (!seconds) return '';
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function showError(msg) {
+            const el = document.getElementById('errorMessage');
+            el.textContent = msg;
+            el.classList.add('show');
+            setTimeout(() => el.classList.remove('show'), 5000);
+        }
+
+        function hideAll() {
+            document.getElementById('errorMessage').classList.remove('show');
+            document.getElementById('successMessage').classList.remove('show');
+            document.getElementById('progressSection').classList.remove('show');
+        }
+
+        async function getVideoInfo() {
+            const url = document.getElementById('urlInput').value.trim();
+            if (!url) {
+                showError('Vui lòng nhập link YouTube!');
+                return;
+            }
+
+            hideAll();
+            const btn = document.getElementById('btnGetInfo');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span> Đang tìm...';
+
+            document.getElementById('videoInfo').classList.remove('show');
+            document.getElementById('formatSection').classList.remove('show');
+
+            try {
+                const response = await fetch('/api/info', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: url })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    showError(data.error || 'Có lỗi xảy ra');
+                    return;
+                }
+
+                currentUrl = url;
+
+                document.getElementById('videoThumbnail').src = data.thumbnail;
+                document.getElementById('videoTitle').textContent = data.title;
+                document.getElementById('videoChannel').textContent = '📺 ' + data.channel;
+                document.getElementById('videoDuration').textContent = '⏱️ ' + formatDuration(data.duration);
+
+                document.getElementById('videoInfo').classList.add('show');
+                document.getElementById('formatSection').classList.add('show');
+            } catch (err) {
+                showError('Không thể kết nối đến server. Vui lòng thử lại!');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = 'Tìm kiếm';
+            }
+        }
+
+        async function startDownload() {
+            if (!currentUrl) {
+                showError('Vui lòng tìm kiếm video trước!');
+                return;
+            }
+
+            hideAll();
+            const btn = document.getElementById('btnDownload');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span> Đang xử lý...';
+
+            document.getElementById('progressSection').classList.add('show');
+            document.getElementById('progressBar').style.width = '0%';
+            document.getElementById('progressText').textContent = 'Đang bắt đầu tải...';
+
+            try {
+                const response = await fetch('/api/download', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: currentUrl, format: selectedFormat })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    showError(data.error || 'Có lỗi xảy ra');
+                    btn.disabled = false;
+                    btn.innerHTML = '⬇️ Tải xuống';
+                    document.getElementById('progressSection').classList.remove('show');
+                    return;
+                }
+
+                pollStatus(data.task_id);
+            } catch (err) {
+                showError('Không thể kết nối đến server!');
+                btn.disabled = false;
+                btn.innerHTML = '⬇️ Tải xuống';
+                document.getElementById('progressSection').classList.remove('show');
+            }
+        }
+
+        function pollStatus(taskId) {
+            const interval = setInterval(async () => {
+                try {
+                    const response = await fetch(`/api/status/${taskId}`);
+                    const data = await response.json();
+
+                    if (data.status === 'downloading') {
+                        document.getElementById('progressBar').style.width = data.progress + '%';
+                        document.getElementById('progressText').textContent =
+                            `Đang tải xuống... ${data.progress}%`;
+                    } else if (data.status === 'converting') {
+                        document.getElementById('progressBar').style.width = '100%';
+                        document.getElementById('progressText').textContent =
+                            'Đang chuyển đổi định dạng...';
+                    } else if (data.status === 'completed') {
+                        clearInterval(interval);
+                        document.getElementById('progressBar').style.width = '100%';
+                        document.getElementById('progressText').textContent = 'Hoàn thành!';
+
+                        const successEl = document.getElementById('successMessage');
+                        successEl.innerHTML = '✅ Tải xuống thành công! File đang được tải về...';
+                        successEl.classList.add('show');
+
+                        window.location.href = `/api/file/${taskId}`;
+
+                        const btn = document.getElementById('btnDownload');
+                        btn.disabled = false;
+                        btn.innerHTML = '⬇️ Tải xuống';
+                    } else if (data.status === 'error') {
+                        clearInterval(interval);
+                        showError(data.error || 'Có lỗi xảy ra khi tải!');
+                        document.getElementById('progressSection').classList.remove('show');
+
+                        const btn = document.getElementById('btnDownload');
+                        btn.disabled = false;
+                        btn.innerHTML = '⬇️ Tải xuống';
+                    }
+                } catch (err) {
+                    clearInterval(interval);
+                    showError('Mất kết nối với server!');
+                    document.getElementById('progressSection').classList.remove('show');
+
+                    const btn = document.getElementById('btnDownload');
+                    btn.disabled = false;
+                    btn.innerHTML = '⬇️ Tải xuống';
+                }
+            }, 1000);
+        }
+    </script>
+</body>
+</html>
