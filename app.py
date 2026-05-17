@@ -1,7 +1,9 @@
 import os
+import re
 import uuid
 import threading
 import time
+
 
 from flask import Flask, render_template, request, jsonify, send_file
 import yt_dlp
@@ -12,6 +14,34 @@ DOWNLOAD_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "downloa
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 download_tasks = {}
+
+BROWSER_PRIORITY = ["chrome", "edge", "firefox", "opera", "brave", "chromium"]
+
+
+def detect_browser():
+    """Detect which browser is available for cookie extraction."""
+    for browser in BROWSER_PRIORITY:
+        try:
+            yt_dlp.cookies.extract_cookies_from_browser(browser)
+            return browser
+        except Exception:
+            continue
+    return None
+
+
+def get_cookie_opts():
+    """Get yt-dlp options for cookie authentication."""
+    browser = detect_browser()
+    if browser:
+        return {"cookiesfrombrowser": (browser,)}
+    return {}
+
+
+def clean_url(url):
+    """Remove playlist parameters from URL to download single video only."""
+    url = url.strip()
+    url = re.sub(r'[&?](list|index|start_radio)=[^&]*', '', url)
+    return url
 
 
 def clean_old_files():
@@ -25,10 +55,13 @@ def clean_old_files():
 
 def get_video_info(url):
     """Get video info without downloading."""
+    url = clean_url(url)
     ydl_opts = {
         "quiet": True,
         "no_warnings": True,
         "extract_flat": False,
+        "noplaylist": True,
+        **get_cookie_opts(),
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=False)
@@ -59,6 +92,9 @@ def download_video(task_id, url, format_type):
             task["status"] = "converting"
             task["progress"] = 100
 
+    url = clean_url(url)
+    cookie_opts = get_cookie_opts()
+
     if format_type == "mp3":
         ydl_opts = {
             "format": "bestaudio/best",
@@ -73,6 +109,8 @@ def download_video(task_id, url, format_type):
             "progress_hooks": [progress_hook],
             "quiet": True,
             "no_warnings": True,
+            "noplaylist": True,
+            **cookie_opts,
         }
     else:
         ydl_opts = {
@@ -82,6 +120,8 @@ def download_video(task_id, url, format_type):
             "progress_hooks": [progress_hook],
             "quiet": True,
             "no_warnings": True,
+            "noplaylist": True,
+            **cookie_opts,
         }
 
     try:
@@ -107,8 +147,17 @@ def download_video(task_id, url, format_type):
                 task["status"] = "error"
                 task["error"] = "Không tìm thấy file đã tải"
     except Exception as e:
+        error_msg = str(e)
+        if "Sign in" in error_msg or "bot" in error_msg:
+            task["error"] = (
+                "YouTube yêu cầu xác thực. Hãy đảm bảo bạn đã đăng nhập YouTube "
+                "trên trình duyệt (Chrome/Edge/Firefox) rồi thử lại."
+            )
+        elif "Video unavailable" in error_msg:
+            task["error"] = "Video không khả dụng hoặc bị giới hạn khu vực."
+        else:
+            task["error"] = error_msg
         task["status"] = "error"
-        task["error"] = str(e)
 
 
 @app.route("/")
@@ -128,7 +177,13 @@ def video_info():
         info = get_video_info(url)
         return jsonify(info)
     except Exception as e:
-        return jsonify({"error": f"Không thể lấy thông tin video: {str(e)}"}), 400
+        error_msg = str(e)
+        if "Sign in" in error_msg or "bot" in error_msg:
+            return jsonify({
+                "error": "YouTube yêu cầu xác thực. Hãy đăng nhập YouTube "
+                         "trên trình duyệt (Chrome/Edge/Firefox) rồi thử lại."
+            }), 400
+        return jsonify({"error": f"Không thể lấy thông tin video: {error_msg}"}), 400
 
 
 @app.route("/api/download", methods=["POST"])
