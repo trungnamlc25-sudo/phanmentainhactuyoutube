@@ -73,11 +73,25 @@ def get_video_info(url):
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=False)
+
+        formats = info.get("formats", [])
+        best_video_height = 0
+        best_audio_abr = 0
+        for f in formats:
+            h = f.get("height") or 0
+            if h > best_video_height:
+                best_video_height = h
+            abr = f.get("abr") or 0
+            if abr > best_audio_abr:
+                best_audio_abr = abr
+
         return {
             "title": info.get("title", "Unknown"),
             "thumbnail": info.get("thumbnail", ""),
             "duration": info.get("duration", 0),
             "channel": info.get("channel", info.get("uploader", "Unknown")),
+            "best_video_height": best_video_height,
+            "best_audio_abr": int(best_audio_abr),
         }
 
 

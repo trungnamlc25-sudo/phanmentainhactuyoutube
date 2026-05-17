@@ -557,13 +557,13 @@
                         <div class="format-check">&#10003;</div>
                         <div class="format-icon">&#127925;</div>
                         <div class="format-name">MP3</div>
-                        <div class="format-desc">Âm thanh 192kbps</div>
+                        <div class="format-desc" id="mp3Desc">Âm thanh 320kbps</div>
                     </div>
                     <div class="format-btn" id="btnMp4" onclick="selectFormat('mp4')">
                         <div class="format-check">&#10003;</div>
                         <div class="format-icon">&#127916;</div>
                         <div class="format-name">MP4</div>
-                        <div class="format-desc">Video chất lượng cao</div>
+                        <div class="format-desc" id="mp4Desc">Video chất lượng cao</div>
                     </div>
                 </div>
                 <button class="btn-download" id="btnDownload" onclick="startDownload()">
@@ -666,6 +666,13 @@
                 document.getElementById('videoTitle').textContent = data.title;
                 document.getElementById('videoChannel').textContent = data.channel;
                 document.getElementById('videoDurationBadge').textContent = formatDuration(data.duration);
+
+                if (data.best_video_height) {
+                    document.getElementById('mp4Desc').textContent = 'Video ' + data.best_video_height + 'p';
+                }
+                if (data.best_audio_abr) {
+                    document.getElementById('mp3Desc').textContent = 'Âm thanh ' + data.best_audio_abr + 'kbps';
+                }
 
                 document.getElementById('videoInfo').classList.add('show');
                 document.getElementById('formatSection').classList.add('show');
