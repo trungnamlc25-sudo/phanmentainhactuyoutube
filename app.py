@@ -112,7 +112,7 @@ def download_video(task_id, url, format_type):
                     {
                         "key": "FFmpegExtractAudio",
                         "preferredcodec": "mp3",
-                        "preferredquality": "192",
+                        "preferredquality": "320",
                     }
                 ],
                 "progress_hooks": [progress_hook],
@@ -134,7 +134,7 @@ def download_video(task_id, url, format_type):
     else:
         if HAS_FFMPEG:
             ydl_opts = {
-                "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+                "format": "bestvideo[ext=mp4][height<=2160]+bestaudio[ext=m4a]/bestvideo[height<=2160]+bestaudio/best[ext=mp4]/best",
                 "outtmpl": os.path.join(DOWNLOAD_DIR, f"{unique_name}.%(ext)s"),
                 "merge_output_format": "mp4",
                 "progress_hooks": [progress_hook],
@@ -145,7 +145,7 @@ def download_video(task_id, url, format_type):
             }
         else:
             ydl_opts = {
-                "format": "best[ext=mp4]/best",
+                "format": "best[ext=mp4][height<=2160]/best",
                 "outtmpl": os.path.join(DOWNLOAD_DIR, f"{unique_name}.%(ext)s"),
                 "progress_hooks": [progress_hook],
                 "quiet": True,
