@@ -1,4 +1,6 @@
 import os
+import re
+import shutil
 import uuid
 import threading
 import time
@@ -13,6 +15,42 @@ os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 download_tasks = {}
 
+BROWSER_PRIORITY = ["chrome", "edge", "firefox", "opera", "brave", "chromium"]
+
+HAS_FFMPEG = shutil.which("ffmpeg") is not None
+
+_cached_browser = None
+
+
+def detect_browser():
+    """Detect which browser is available for cookie extraction."""
+    for browser in BROWSER_PRIORITY:
+        try:
+            yt_dlp.cookies.extract_cookies_from_browser(browser)
+            return browser
+        except Exception:
+            continue
+    return None
+
+
+def get_cookie_opts():
+    """Get yt-dlp options for cookie authentication."""
+    global _cached_browser
+    if _cached_browser is None:
+        _cached_browser = detect_browser() or ""
+    if _cached_browser:
+        return {"cookiesfrombrowser": (_cached_browser,)}
+    return {}
+
+
+def clean_url(url):
+    """Remove playlist parameters from URL to download single video only."""
+    url = url.strip()
+    url = re.sub(r'[&?](list|index|start_radio)=[^&]*', '', url)
+    if '?' not in url and '&' in url:
+        url = url.replace('&', '?', 1)
+    return url
+
 
 def clean_old_files():
     """Remove downloaded files older than 1 hour."""
@@ -25,10 +63,13 @@ def clean_old_files():
 
 def get_video_info(url):
     """Get video info without downloading."""
+    url = clean_url(url)
     ydl_opts = {
         "quiet": True,
         "no_warnings": True,
         "extract_flat": False,
+        "noplaylist": True,
+        **get_cookie_opts(),
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=False)
@@ -59,36 +100,70 @@ def download_video(task_id, url, format_type):
             task["status"] = "converting"
             task["progress"] = 100
 
+    url = clean_url(url)
+    cookie_opts = get_cookie_opts()
+
     if format_type == "mp3":
-        ydl_opts = {
-            "format": "bestaudio/best",
-            "outtmpl": os.path.join(DOWNLOAD_DIR, f"{unique_name}.%(ext)s"),
-            "postprocessors": [
-                {
-                    "key": "FFmpegExtractAudio",
-                    "preferredcodec": "mp3",
-                    "preferredquality": "192",
-                }
-            ],
-            "progress_hooks": [progress_hook],
-            "quiet": True,
-            "no_warnings": True,
-        }
+        if HAS_FFMPEG:
+            ydl_opts = {
+                "format": "bestaudio/best",
+                "outtmpl": os.path.join(DOWNLOAD_DIR, f"{unique_name}.%(ext)s"),
+                "postprocessors": [
+                    {
+                        "key": "FFmpegExtractAudio",
+                        "preferredcodec": "mp3",
+                        "preferredquality": "192",
+                    }
+                ],
+                "progress_hooks": [progress_hook],
+                "quiet": True,
+                "no_warnings": True,
+                "noplaylist": True,
+                **cookie_opts,
+            }
+        else:
+            ydl_opts = {
+                "format": "bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best",
+                "outtmpl": os.path.join(DOWNLOAD_DIR, f"{unique_name}.%(ext)s"),
+                "progress_hooks": [progress_hook],
+                "quiet": True,
+                "no_warnings": True,
+                "noplaylist": True,
+                **cookie_opts,
+            }
     else:
-        ydl_opts = {
-            "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
-            "outtmpl": os.path.join(DOWNLOAD_DIR, f"{unique_name}.%(ext)s"),
-            "merge_output_format": "mp4",
-            "progress_hooks": [progress_hook],
-            "quiet": True,
-            "no_warnings": True,
-        }
+        if HAS_FFMPEG:
+            ydl_opts = {
+                "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+                "outtmpl": os.path.join(DOWNLOAD_DIR, f"{unique_name}.%(ext)s"),
+                "merge_output_format": "mp4",
+                "progress_hooks": [progress_hook],
+                "quiet": True,
+                "no_warnings": True,
+                "noplaylist": True,
+                **cookie_opts,
+            }
+        else:
+            ydl_opts = {
+                "format": "best[ext=mp4]/best",
+                "outtmpl": os.path.join(DOWNLOAD_DIR, f"{unique_name}.%(ext)s"),
+                "progress_hooks": [progress_hook],
+                "quiet": True,
+                "no_warnings": True,
+                "noplaylist": True,
+                **cookie_opts,
+            }
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
 
-        ext = format_type if format_type == "mp3" else "mp4"
+        ext = format_type if format_type == "mp3" and HAS_FFMPEG else None
+        if ext is None:
+            for f in os.listdir(DOWNLOAD_DIR):
+                if f.startswith(unique_name):
+                    ext = f.split('.')[-1]
+                    break
         filepath = os.path.join(DOWNLOAD_DIR, f"{unique_name}.{ext}")
 
         if os.path.exists(filepath):
@@ -107,8 +182,22 @@ def download_video(task_id, url, format_type):
                 task["status"] = "error"
                 task["error"] = "Không tìm thấy file đã tải"
     except Exception as e:
+        error_msg = str(e)
+        if "Sign in" in error_msg or "bot" in error_msg:
+            task["error"] = (
+                "YouTube yêu cầu xác thực. Hãy đảm bảo bạn đã đăng nhập YouTube "
+                "trên trình duyệt (Chrome/Edge/Firefox) rồi thử lại."
+            )
+        elif "Video unavailable" in error_msg:
+            task["error"] = "Video không khả dụng hoặc bị giới hạn khu vực."
+        elif "ffmpeg" in error_msg.lower():
+            task["error"] = (
+                "Cần cài FFmpeg để chuyển đổi định dạng. "
+                "Tải tại: https://www.gyan.dev/ffmpeg/builds/"
+            )
+        else:
+            task["error"] = error_msg
         task["status"] = "error"
-        task["error"] = str(e)
 
 
 @app.route("/")
@@ -126,9 +215,16 @@ def video_info():
 
     try:
         info = get_video_info(url)
+        info["has_ffmpeg"] = HAS_FFMPEG
         return jsonify(info)
     except Exception as e:
-        return jsonify({"error": f"Không thể lấy thông tin video: {str(e)}"}), 400
+        error_msg = str(e)
+        if "Sign in" in error_msg or "bot" in error_msg:
+            return jsonify({
+                "error": "YouTube yêu cầu xác thực. Hãy đăng nhập YouTube "
+                         "trên trình duyệt (Chrome/Edge/Firefox) rồi thử lại."
+            }), 400
+        return jsonify({"error": f"Không thể lấy thông tin video: {error_msg}"}), 400
 
 
 @app.route("/api/download", methods=["POST"])
@@ -201,4 +297,11 @@ def download_file(task_id):
 
 
 if __name__ == "__main__":
+    if not HAS_FFMPEG:
+        print("WARNING: FFmpeg chua duoc cai dat!")
+        print("  MP3: se tai am thanh goc (m4a/webm) thay vi chuyen doi sang mp3")
+        print("  MP4: se tai video don (khong ghep video+audio rieng)")
+        print("  De co chat luong tot nhat, hay cai FFmpeg:")
+        print("  https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip")
+        print()
     app.run(debug=True, host="0.0.0.0", port=5000)
